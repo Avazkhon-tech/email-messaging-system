@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-emaildb}
+      POSTGRES_USER: ${DB_USERNAME:-emailuser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-emailpass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-emailuser} -d ${DB_NAME:-emaildb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-emaildb}
+      DB_USERNAME: ${DB_USERNAME:-emailuser}
+      DB_PASSWORD: ${DB_PASSWORD:-emailpass}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      CREDENTIAL_AES_KEY: ${CREDENTIAL_AES_KEY}
+      SYNC_INTERVAL_MS: ${SYNC_INTERVAL_MS:-60000}
+      SYNC_INITIAL_DELAY_MS: ${SYNC_INITIAL_DELAY_MS:-15000}
+      SYNC_FETCH_LIMIT: ${SYNC_FETCH_LIMIT:-50}
+      MAIL_TIMEOUT_MS: ${MAIL_TIMEOUT_MS:-30000}
+
+      JAVA_TOOL_OPTIONS: "-Djava.net.preferIPv4Stack=true"
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
