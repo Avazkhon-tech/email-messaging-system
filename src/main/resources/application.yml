@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: email-messaging-system
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/emaildb}
+    username: ${DB_USERNAME:emailuser}
+    password: ${DB_PASSWORD:emailpass}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+server:
+  port: ${SERVER_PORT:8080}
+
+app:
+  jwt:
+
+    secret: ${JWT_SECRET:Y2hhbmdlLW1lLXRoaXMtaXMtYS1kZXYtb25seS1zZWNyZXQtMzJC}
+
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  crypto:
+
+    secret: ${CREDENTIAL_AES_KEY:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+  sync:
+
+    interval-ms: ${SYNC_INTERVAL_MS:60000}
+
+    initial-delay-ms: ${SYNC_INITIAL_DELAY_MS:15000}
+
+    fetch-limit: ${SYNC_FETCH_LIMIT:50}
+  mail:
+
+    timeout-ms: ${MAIL_TIMEOUT_MS:30000}
+
+logging:
+  level:
+    com.emailsystem: INFO
+
+kind: Application
