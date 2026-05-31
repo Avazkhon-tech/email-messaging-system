@@ -8,8 +8,6 @@ import com.emailsystem.common.exception.NotFoundException;
 import com.emailsystem.message.dto.MessageDetailResponse;
 import com.emailsystem.message.dto.MessageSummaryResponse;
 import com.emailsystem.message.dto.SendMessageRequest;
-import com.emailsystem.provider.EmailProviderClient;
-import com.emailsystem.provider.OutgoingMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,25 +21,19 @@ public class MessageService {
 
     private final EmailMessageRepository messageRepository;
     private final EmailAccountRepository accountRepository;
-    private final EmailProviderClient providerClient;
+    private final OutgoingMessageSender messageSender;
     private final MessageMapper mapper;
 
     @Transactional(readOnly = true)
     public void send(Long userId, SendMessageRequest request) {
+        // Quick validation only
         EmailAccount account = accountRepository.findByIdAndUserId(request.accountId(), userId)
                 .orElseThrow(() -> new NotFoundException("Email account not found"));
         if (account.getStatus() != AccountStatus.ACTIVE) {
             throw new BadRequestException("Cannot send from an inactive account");
         }
-
-        OutgoingMessage outgoing = new OutgoingMessage(
-                account.getEmailAddress(),
-                request.recipients(),
-                request.subject(),
-                request.body(),
-                request.html());
-
-        providerClient.send(account, outgoing);
+        // Trigger async send
+        messageSender.sendAsync(userId, request);
     }
 
     @Transactional(readOnly = true)

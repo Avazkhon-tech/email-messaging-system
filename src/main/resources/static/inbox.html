@@ -197,17 +197,27 @@
         $('composeError').textContent = '';
         const recipients = $('composeTo').value.split(',').map(s => s.trim()).filter(Boolean);
         try {
-            await Api.post('/api/messages/send', {
+            $('sendBtn').disabled = true;
+            $('sendBtn').textContent = 'Sending...';
+            const response = await Api.post('/api/messages/send', {
                 accountId: Number($('composeAccount').value),
                 recipients,
                 subject: $('composeSubject').value,
                 body: $('composeBody').value,
                 html: $('composeHtml').checked
             });
+            // Close modal immediately and show status update message
             $('composeModal').style.display = 'none';
+            showBanner(response.message);
             $('composeTo').value = ''; $('composeSubject').value = ''; $('composeBody').value = '';
-            showBanner('Message sent');
-        } catch (e) { $('composeError').textContent = e.message; }
+            $('composeHtml').checked = false;
+            $('sendBtn').disabled = false;
+            $('sendBtn').textContent = 'Send';
+        } catch (e) {
+            $('composeError').textContent = e.message;
+            $('sendBtn').disabled = false;
+            $('sendBtn').textContent = 'Send';
+        }
     };
 
     function showBanner(text) {
@@ -225,9 +235,17 @@
             onConnect: () => {
                 client.subscribe('/user/queue/notifications', (frame) => {
                     const payload = JSON.parse(frame.body);
-                    showBanner(payload.message + ' (' + payload.count + ')');
-                    loadInbox();
-                    loadAccounts();
+                    if (payload.type === 'NEW_MAIL') {
+                        showBanner(payload.message + ' (' + payload.count + ')');
+                        loadInbox();
+                        loadAccounts();
+                    } else if (payload.type === 'MESSAGE_SENT') {
+                        const icon = payload.status === 'SUCCESS' ? '✓' : '✗';
+                        showBanner(icon + ' ' + payload.message);
+                        if (payload.status === 'SUCCESS') {
+                            setTimeout(loadInbox, 500);
+                        }
+                    }
                 });
             }
         });

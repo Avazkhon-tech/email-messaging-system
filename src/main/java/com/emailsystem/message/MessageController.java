@@ -11,12 +11,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
@@ -29,11 +31,13 @@ public class MessageController {
     private final MessageService messageService;
 
     @PostMapping("/send")
+    @ResponseStatus(HttpStatus.ACCEPTED)
     public Map<String, Object> send(@CurrentUser AuthUser user,
                                     @Valid @RequestBody SendMessageRequest request) {
         messageService.send(user.id(), request);
         return Map.of(
-                "status", "sent",
+                "status", "accepted",
+                "message", "Message is being sent. You will be notified when complete.",
                 "recipients", request.recipients());
     }
 
