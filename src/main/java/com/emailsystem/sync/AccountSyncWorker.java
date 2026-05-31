@@ -10,6 +10,7 @@ import com.emailsystem.message.dto.MessageSummaryResponse;
 import com.emailsystem.provider.EmailProviderClient;
 import com.emailsystem.provider.FetchedMessage;
 import com.emailsystem.realtime.NewMailEvent;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 public class AccountSyncWorker {
 
     private static final Logger log = LoggerFactory.getLogger(AccountSyncWorker.class);
@@ -31,20 +33,6 @@ public class AccountSyncWorker {
     private final ApplicationEventPublisher eventPublisher;
     private final AppProperties properties;
     private final MessageMapper mapper;
-
-    public AccountSyncWorker(EmailAccountRepository accountRepository,
-                             EmailMessageRepository messageRepository,
-                             EmailProviderClient providerClient,
-                             ApplicationEventPublisher eventPublisher,
-                             AppProperties properties,
-                             MessageMapper mapper) {
-        this.accountRepository = accountRepository;
-        this.messageRepository = messageRepository;
-        this.providerClient = providerClient;
-        this.eventPublisher = eventPublisher;
-        this.properties = properties;
-        this.mapper = mapper;
-    }
 
     @Transactional
     public void sync(EmailAccount account) {
