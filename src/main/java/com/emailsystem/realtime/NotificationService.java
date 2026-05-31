@@ -1,5 +1,6 @@
 package com.emailsystem.realtime;
 
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -12,16 +13,13 @@ import java.time.Instant;
 import java.util.Map;
 
 @Service
+@RequiredArgsConstructor
 public class NotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
     public static final String DESTINATION = "/queue/notifications";
 
     private final SimpMessagingTemplate messagingTemplate;
-
-    public NotificationService(SimpMessagingTemplate messagingTemplate) {
-        this.messagingTemplate = messagingTemplate;
-    }
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
