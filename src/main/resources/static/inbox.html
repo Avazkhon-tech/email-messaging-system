@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Inbox — Email Messaging System</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header>
+    <h1>Email Messaging System</h1>
+    <div>
+        <span id="who" class="muted" style="color:#cbd5e1; margin-right:12px;"></span>
+        <button class="secondary" id="logoutBtn">Logout</button>
+    </div>
+</header>
+
+<div id="banner" class="banner"></div>
+
+<div class="container wide">
+    <div class="layout">
+
+        <aside class="sidebar">
+            <div class="card">
+                <h2>Connected accounts</h2>
+                <div id="accountsList"></div>
+                <div id="accountError" class="error"></div>
+                <div class="add-account" style="margin-top:8px;">
+                    <select id="newProvider">
+                        <option value="GMAIL">Gmail</option>
+                        <option value="OUTLOOK">Outlook / Hotmail</option>
+                        <option value="YAHOO">Yahoo</option>
+                    </select>
+                    <input id="newEmail" type="email" placeholder="account@gmail.com">
+                    <input id="newPassword" type="password" placeholder="app password">
+                    <button id="addAccountBtn">Connect</button>
+                </div>
+            </div>
+        </aside>
+
+        <main class="inbox-main">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h2 style="margin:0;">Inbox</h2>
+                    <div>
+                        <button id="composeBtn" style="flex:0 0 auto;">Compose</button>
+                    </div>
+                </div>
+                <div class="row" style="margin-top:10px;">
+                    <input id="search" type="text" placeholder="Search subject or sender…">
+                    <button id="searchBtn" style="flex:0 0 auto;">Search</button>
+                    <button id="refreshBtn" class="secondary" style="flex:0 0 auto;">Refresh</button>
+                </div>
+                <table class="messages-table" style="margin-top:12px;">
+                    <colgroup>
+                        <col class="col-sender">
+                        <col class="col-subject">
+                        <col class="col-preview">
+                        <col class="col-date">
+                    </colgroup>
+                    <thead>
+                    <tr><th>Sender</th><th>Subject</th><th>Preview</th><th>Received</th></tr>
+                    </thead>
+                    <tbody id="messages"></tbody>
+                </table>
+                <div id="emptyState" class="muted" style="margin-top:12px; display:none;">No messages yet.</div>
+                <div class="pagination">
+                    <button id="prevBtn" class="secondary">Prev</button>
+                    <span id="pageInfo" class="muted"></span>
+                    <button id="nextBtn" class="secondary">Next</button>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div id="composeModal" class="modal-backdrop">
+    <div class="modal">
+        <h2>New message</h2>
+        <div id="composeError" class="error"></div>
+        <label>From account</label>
+        <select id="composeAccount"></select>
+        <label>To (comma-separated)</label>
+        <input id="composeTo" type="text" placeholder="someone@example.com">
+        <label>Subject</label>
+        <input id="composeSubject" type="text">
+        <label><input type="checkbox" id="composeHtml" style="width:auto;"> Send as HTML</label>
+        <label>Body</label>
+        <textarea id="composeBody"></textarea>
+        <div style="display:flex; gap:8px; margin-top:12px;">
+            <button id="sendBtn">Send</button>
+            <button id="cancelComposeBtn" class="secondary">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
+<script src="/js/api.js"></script>
+<script>
+    Api.requireAuth();
+    const $ = (id) => document.getElementById(id);
+    $('who').textContent = Api.getUser().email || '';
+
+    let page = 0;
+    const size = 20;
+    let totalPages = 1;
+    let accounts = [];
+
+    $('logoutBtn').onclick = () => { Api.clear(); window.location.replace('/login.html'); };
+
+    async function loadAccounts() {
+        try {
+            accounts = await Api.get('/api/accounts');
+            renderAccounts();
+        } catch (e) { $('accountError').textContent = e.message; }
+    }
+
+    function renderAccounts() {
+        if (!accounts.length) {
+            $('accountsList').innerHTML = '<p class="muted">No accounts connected yet.</p>';
+        } else {
+            $('accountsList').innerHTML = accounts.map(a => `
+                <div class="account-item">
+                    <div class="account-id">
+                        <span class="account-email" title="${escapeHtml(a.emailAddress)}">${escapeHtml(a.emailAddress)}</span>
+                        <span class="muted account-provider">${a.provider}</span>
+                    </div>
+                    <div class="account-actions">
+                        <span class="pill ${a.status === 'ACTIVE' ? 'active' : 'inactive'}">${a.status}</span>
+                        <button class="secondary" style="padding:4px 8px;" onclick="toggleStatus(${a.id}, '${a.status}')">
+                            ${a.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                        </button>
+                    </div>
+                </div>`).join('');
+        }
+        const select = $('composeAccount');
+        select.innerHTML = accounts.filter(a => a.status === 'ACTIVE')
+            .map(a => `<option value="${a.id}">${a.emailAddress}</option>`).join('');
+    }
+
+    window.toggleStatus = async (id, current) => {
+        const next = current === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+        try { await Api.put(`/api/accounts/${id}/status`, { status: next }); await loadAccounts(); }
+        catch (e) { $('accountError').textContent = e.message; }
+    };
+
+    $('addAccountBtn').onclick = async () => {
+        $('accountError').textContent = '';
+        try {
+            await Api.post('/api/accounts', {
+                provider: $('newProvider').value,
+                emailAddress: $('newEmail').value.trim(),
+                appPassword: $('newPassword').value
+            });
+            $('newEmail').value = ''; $('newPassword').value = '';
+            await loadAccounts();
+        } catch (e) { $('accountError').textContent = e.message; }
+    };
+
+    async function loadInbox() {
+        const search = encodeURIComponent($('search').value.trim());
+        const url = `/api/messages?page=${page}&size=${size}&sort=receivedAt,desc` +
+            (search ? `&search=${search}` : '');
+        try {
+            const data = await Api.get(url);
+            totalPages = data.totalPages || 1;
+            renderMessages(data.content || []);
+            $('pageInfo').textContent = `Page ${(data.number ?? 0) + 1} of ${totalPages} · ${data.totalElements ?? 0} messages`;
+            $('prevBtn').disabled = (data.number ?? 0) === 0;
+            $('nextBtn').disabled = (data.number ?? 0) + 1 >= totalPages;
+        } catch (e) { console.error(e); }
+    }
+
+    function renderMessages(list) {
+        $('emptyState').style.display = list.length ? 'none' : 'block';
+        $('messages').innerHTML = list.map(m => `
+            <tr class="msg-row ${m.readStatus ? '' : 'unread'}" onclick="location.href='/detail.html?id=${m.id}'">
+                <td>${escapeHtml(m.sender || '')}</td>
+                <td>${escapeHtml(m.subject || '')}</td>
+                <td class="muted">${escapeHtml(m.preview || '')}</td>
+                <td class="muted">${m.receivedAt ? new Date(m.receivedAt).toLocaleString() : ''}</td>
+            </tr>`).join('');
+    }
+
+    const escapeHtml = (s) => (s || '').replace(/[&<>"]/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    $('searchBtn').onclick = () => { page = 0; loadInbox(); };
+    $('refreshBtn').onclick = () => loadInbox();
+    $('prevBtn').onclick = () => { if (page > 0) { page--; loadInbox(); } };
+    $('nextBtn').onclick = () => { if (page + 1 < totalPages) { page++; loadInbox(); } };
+
+    $('composeBtn').onclick = () => { $('composeError').textContent = ''; $('composeModal').style.display = 'flex'; };
+    $('cancelComposeBtn').onclick = () => { $('composeModal').style.display = 'none'; };
+    $('sendBtn').onclick = async () => {
+        $('composeError').textContent = '';
+        const recipients = $('composeTo').value.split(',').map(s => s.trim()).filter(Boolean);
+        try {
+            await Api.post('/api/messages/send', {
+                accountId: Number($('composeAccount').value),
+                recipients,
+                subject: $('composeSubject').value,
+                body: $('composeBody').value,
+                html: $('composeHtml').checked
+            });
+            $('composeModal').style.display = 'none';
+            $('composeTo').value = ''; $('composeSubject').value = ''; $('composeBody').value = '';
+            showBanner('Message sent');
+        } catch (e) { $('composeError').textContent = e.message; }
+    };
+
+    function showBanner(text) {
+        const b = $('banner');
+        b.textContent = text;
+        b.style.display = 'block';
+        setTimeout(() => { b.style.display = 'none'; }, 4000);
+    }
+
+    function connectWebSocket() {
+        const client = new StompJs.Client({
+            webSocketFactory: () => new SockJS('/ws'),
+            connectHeaders: { Authorization: 'Bearer ' + Api.getToken() },
+            reconnectDelay: 5000,
+            onConnect: () => {
+                client.subscribe('/user/queue/notifications', (frame) => {
+                    const payload = JSON.parse(frame.body);
+                    showBanner(payload.message + ' (' + payload.count + ')');
+                    loadInbox();
+                    loadAccounts();
+                });
+            }
+        });
+        client.activate();
+    }
+
+    loadAccounts();
+    loadInbox();
+    connectWebSocket();
+</script>
+</body>
+</html>

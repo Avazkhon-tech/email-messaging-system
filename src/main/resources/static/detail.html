@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Message — Email Messaging System</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header>
+    <h1>Email Messaging System</h1>
+    <button class="secondary" onclick="location.href='/inbox.html'">← Back to inbox</button>
+</header>
+
+<div class="container">
+    <div class="card">
+        <div id="error" class="error"></div>
+        <h2 id="subject">Loading…</h2>
+        <p><strong>From:</strong> <span id="sender"></span></p>
+        <p><strong>To:</strong> <span id="recipients"></span></p>
+        <p class="muted"><span id="received"></span></p>
+        <hr style="border:none; border-top:1px solid #eef0f2;">
+        <div id="body" style="white-space:pre-wrap; margin-top:12px;"></div>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+    Api.requireAuth();
+    const $ = (id) => document.getElementById(id);
+    const id = new URLSearchParams(location.search).get('id');
+
+    const escapeHtml = (s) => (s || '').replace(/[&<>"]/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    async function load() {
+        try {
+            const m = await Api.get('/api/messages/' + id);
+            $('subject').textContent = m.subject || '(no subject)';
+            $('sender').textContent = m.sender || '';
+            $('recipients').textContent = m.recipients || '';
+            $('received').textContent = m.receivedAt ? new Date(m.receivedAt).toLocaleString() : '';
+
+            if (m.bodyHtml && m.bodyHtml.trim()) {
+                $('body').innerHTML = m.bodyHtml;
+            } else {
+                $('body').textContent = m.body || '';
+            }
+        } catch (e) { $('error').textContent = e.message; }
+    }
+
+    load();
+</script>
+</body>
+</html>
