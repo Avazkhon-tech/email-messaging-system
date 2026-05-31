@@ -29,6 +29,7 @@ class AuthServiceTest {
     @Mock UserRepository userRepository;
     @Mock PasswordEncoder passwordEncoder;
     @Mock JwtService jwtService;
+    @Mock AuthMapper mapper;
     @InjectMocks AuthService authService;
 
     @Test
@@ -42,6 +43,8 @@ class AuthServiceTest {
             return u;
         });
         when(jwtService.generateToken(1L, "jane@example.com")).thenReturn("jwt-token");
+        AuthResponse expectedResponse = new AuthResponse("jwt-token", 1L, "Jane Doe", "jane@example.com");
+        when(mapper.toResponse(any(User.class), anyString())).thenReturn(expectedResponse);
 
         AuthResponse response = authService.register(request);
 
@@ -65,6 +68,8 @@ class AuthServiceTest {
         when(userRepository.findByEmail("a@b.com")).thenReturn(Optional.of(stored));
         when(passwordEncoder.matches("secret", "hash")).thenReturn(true);
         when(jwtService.generateToken(7L, "a@b.com")).thenReturn("tok");
+        AuthResponse expectedResponse = new AuthResponse("tok", 7L, "A", "a@b.com");
+        when(mapper.toResponse(stored, "tok")).thenReturn(expectedResponse);
 
         AuthResponse response = authService.login(new LoginRequest("a@b.com", "secret"));
 

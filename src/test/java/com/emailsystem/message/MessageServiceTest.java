@@ -8,11 +8,8 @@ import com.emailsystem.common.exception.BadRequestException;
 import com.emailsystem.common.exception.NotFoundException;
 import com.emailsystem.message.dto.MessageDetailResponse;
 import com.emailsystem.message.dto.SendMessageRequest;
-import com.emailsystem.provider.EmailProviderClient;
-import com.emailsystem.provider.OutgoingMessage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -33,7 +30,8 @@ class MessageServiceTest {
 
     @Mock EmailMessageRepository messageRepository;
     @Mock EmailAccountRepository accountRepository;
-    @Mock EmailProviderClient providerClient;
+    @Mock OutgoingMessageSender messageSender;
+    @Mock MessageMapper mapper;
     @InjectMocks MessageService messageService;
 
     private EmailAccount activeAccount() {
@@ -44,16 +42,13 @@ class MessageServiceTest {
     }
 
     @Test
-    void sendDispatchesThroughProvider() {
+    void sendDispatchesThroughAsyncSender() {
         when(accountRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(activeAccount()));
         var request = new SendMessageRequest(10L, List.of("to@x.com"), "Hi", "Body", false);
 
         messageService.send(1L, request);
 
-        ArgumentCaptor<OutgoingMessage> captor = ArgumentCaptor.forClass(OutgoingMessage.class);
-        verify(providerClient).send(any(EmailAccount.class), captor.capture());
-        assertThat(captor.getValue().recipients()).containsExactly("to@x.com");
-        assertThat(captor.getValue().from()).isEqualTo("me@gmail.com");
+        verify(messageSender).sendAsync(1L, request);
     }
 
     @Test
@@ -65,7 +60,7 @@ class MessageServiceTest {
 
         assertThatThrownBy(() -> messageService.send(1L, request))
                 .isInstanceOf(BadRequestException.class);
-        verify(providerClient, never()).send(any(), any());
+        verify(messageSender, never()).sendAsync(any(), any());
     }
 
     @Test
@@ -82,6 +77,8 @@ class MessageServiceTest {
         EmailMessage message = EmailMessage.builder()
                 .id(5L).accountId(10L).subject("s").readStatus(false).build();
         when(messageRepository.findByIdForUser(5L, 1L)).thenReturn(Optional.of(message));
+        MessageDetailResponse expectedResponse = new MessageDetailResponse(5L, "", "", "s", "", "", null, true);
+        when(mapper.toDetail(message)).thenReturn(expectedResponse);
 
         MessageDetailResponse response = messageService.detail(1L, 5L);
 

@@ -110,8 +110,8 @@ class ApiFlowTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"accountId\":" + accountId
                                 + ",\"recipients\":[\"bob@example.com\"],\"subject\":\"Hi\",\"body\":\"Body\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("sent"));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("accepted"));
 
         mockMvc.perform(get("/api/messages")).andExpect(status().isUnauthorized());
 
