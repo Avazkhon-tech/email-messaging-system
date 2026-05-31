@@ -8,27 +8,19 @@ import com.emailsystem.common.exception.UnauthorizedException;
 import com.emailsystem.security.JwtService;
 import com.emailsystem.user.User;
 import com.emailsystem.user.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthMapper mapper;
-
-    public AuthService(UserRepository userRepository,
-                       PasswordEncoder passwordEncoder,
-                       JwtService jwtService,
-                       AuthMapper mapper) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtService = jwtService;
-        this.mapper = mapper;
-    }
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {

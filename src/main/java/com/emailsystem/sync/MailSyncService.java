@@ -3,6 +3,7 @@ package com.emailsystem.sync;
 import com.emailsystem.account.AccountStatus;
 import com.emailsystem.account.EmailAccount;
 import com.emailsystem.account.EmailAccountRepository;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -11,17 +12,13 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class MailSyncService {
 
     private static final Logger log = LoggerFactory.getLogger(MailSyncService.class);
 
     private final EmailAccountRepository accountRepository;
     private final AccountSyncWorker worker;
-
-    public MailSyncService(EmailAccountRepository accountRepository, AccountSyncWorker worker) {
-        this.accountRepository = accountRepository;
-        this.worker = worker;
-    }
 
     @Scheduled(
             fixedDelayString = "${app.sync.interval-ms}",

@@ -10,6 +10,7 @@ import com.emailsystem.message.dto.MessageSummaryResponse;
 import com.emailsystem.message.dto.SendMessageRequest;
 import com.emailsystem.provider.EmailProviderClient;
 import com.emailsystem.provider.OutgoingMessage;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -17,22 +18,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
+@RequiredArgsConstructor
 public class MessageService {
 
     private final EmailMessageRepository messageRepository;
     private final EmailAccountRepository accountRepository;
     private final EmailProviderClient providerClient;
     private final MessageMapper mapper;
-
-    public MessageService(EmailMessageRepository messageRepository,
-                          EmailAccountRepository accountRepository,
-                          EmailProviderClient providerClient,
-                          MessageMapper mapper) {
-        this.messageRepository = messageRepository;
-        this.accountRepository = accountRepository;
-        this.providerClient = providerClient;
-        this.mapper = mapper;
-    }
 
     @Transactional(readOnly = true)
     public void send(Long userId, SendMessageRequest request) {

@@ -3,7 +3,6 @@ package com.emailsystem.security;
 import com.emailsystem.config.AppProperties;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Service;
 

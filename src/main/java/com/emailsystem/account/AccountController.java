@@ -6,33 +6,31 @@ import com.emailsystem.account.dto.UpdateStatusRequest;
 import com.emailsystem.security.AuthUser;
 import com.emailsystem.security.CurrentUser;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/accounts")
 public class AccountController {
 
     private final AccountService accountService;
 
-    public AccountController(AccountService accountService) {
-        this.accountService = accountService;
-    }
-
     @PostMapping
-    public ResponseEntity<AccountResponse> addAccount(@CurrentUser AuthUser user,
-                                                      @Valid @RequestBody CreateAccountRequest request) {
-        AccountResponse response = accountService.addAccount(user.id(), request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    @ResponseStatus(HttpStatus.CREATED)
+    public AccountResponse addAccount(@CurrentUser AuthUser user,
+                                      @Valid @RequestBody CreateAccountRequest request) {
+        return accountService.addAccount(user.id(), request);
     }
 
     @GetMapping

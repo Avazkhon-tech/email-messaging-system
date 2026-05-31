@@ -6,28 +6,20 @@ import com.emailsystem.common.exception.ConflictException;
 import com.emailsystem.common.exception.NotFoundException;
 import com.emailsystem.crypto.CredentialCipher;
 import com.emailsystem.provider.EmailProviderClient;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class AccountService {
 
     private final EmailAccountRepository accountRepository;
     private final CredentialCipher cipher;
     private final EmailProviderClient providerClient;
     private final AccountMapper mapper;
-
-    public AccountService(EmailAccountRepository accountRepository,
-                          CredentialCipher cipher,
-                          EmailProviderClient providerClient,
-                          AccountMapper mapper) {
-        this.accountRepository = accountRepository;
-        this.cipher = cipher;
-        this.providerClient = providerClient;
-        this.mapper = mapper;
-    }
 
     @Transactional
     public AccountResponse addAccount(Long userId, CreateAccountRequest request) {
