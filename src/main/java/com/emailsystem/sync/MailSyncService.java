@@ -1,6 +1,5 @@
 package com.emailsystem.sync;
 
-import com.emailsystem.account.AccountStatus;
 import com.emailsystem.account.EmailAccount;
 import com.emailsystem.account.EmailAccountRepository;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -24,7 +24,7 @@ public class MailSyncService {
             fixedDelayString = "${app.sync.interval-ms}",
             initialDelayString = "${app.sync.initial-delay-ms}")
     public void syncAllActiveAccounts() {
-        List<EmailAccount> active = accountRepository.findByStatus(AccountStatus.ACTIVE);
+        List<EmailAccount> active = accountRepository.findActiveAccountsNeedingSync(Instant.now().minusSeconds(60));
         if (active.isEmpty()) {
             return;
         }
