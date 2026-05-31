@@ -25,6 +25,7 @@ public class MailSyncService {
             initialDelayString = "${app.sync.initial-delay-ms}")
     public void syncAllActiveAccounts() {
         List<EmailAccount> active = accountRepository.findActiveAccountsNeedingSync(Instant.now().minusSeconds(60));
+        log.info("Active account count: {}", active.size());
         if (active.isEmpty()) {
             return;
         }
