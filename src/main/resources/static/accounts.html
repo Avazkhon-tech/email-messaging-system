@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Accounts — Email Messaging System</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<header>
+    <h1>Email Messaging System</h1>
+    <nav class="topnav">
+        <a href="/inbox.html">Inbox</a>
+        <a href="/accounts.html" class="active">Accounts</a>
+    </nav>
+    <div>
+        <span id="who" class="muted" style="color:#cbd5e1; margin-right:12px;"></span>
+        <button class="secondary" id="logoutBtn">Logout</button>
+    </div>
+</header>
+
+<div id="banner" class="banner"></div>
+
+<div class="container" style="max-width: 720px;">
+    <div class="card">
+        <h2>Connect a mailbox</h2>
+        <div id="accountError" class="error"></div>
+        <div class="add-account">
+            <select id="newProvider">
+                <option value="GMAIL">Gmail</option>
+                <option value="OUTLOOK">Outlook / Hotmail</option>
+                <option value="YAHOO">Yahoo</option>
+            </select>
+            <input id="newEmail" type="email" placeholder="account@gmail.com">
+            <input id="newPassword" type="password" placeholder="app password">
+            <button id="addAccountBtn">Connect</button>
+        </div>
+        <p class="muted" style="margin-top:8px;">
+            Use an <strong>app password</strong>, not your real account password.
+        </p>
+    </div>
+
+    <div class="card">
+        <h2>Connected accounts</h2>
+        <div id="accountsList"></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7/bundles/stomp.umd.min.js"></script>
+<script src="/js/api.js"></script>
+<script>
+    Api.requireAuth();
+    const $ = (id) => document.getElementById(id);
+    $('who').textContent = Api.getUser().email || '';
+
+    let accounts = [];
+
+    $('logoutBtn').onclick = () => { Api.clear(); window.location.replace('/login.html'); };
+
+    const escapeHtml = (s) => (s || '').replace(/[&<>"]/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    async function loadAccounts() {
+        try {
+            accounts = await Api.get('/api/accounts');
+            renderAccounts();
+        } catch (e) { $('accountError').textContent = e.message; }
+    }
+
+    function renderAccounts() {
+        if (!accounts.length) {
+            $('accountsList').innerHTML = '<p class="muted">No accounts connected yet.</p>';
+            return;
+        }
+        $('accountsList').innerHTML = accounts.map(a => `
+            <div class="account-item">
+                <div class="account-id">
+                    <span class="account-email" title="${escapeHtml(a.emailAddress)}">${escapeHtml(a.emailAddress)}</span>
+                    <span class="muted account-provider">${a.provider}${a.lastSyncStatus ? ' · ' + escapeHtml(a.lastSyncStatus) : ''}</span>
+                </div>
+                <div class="account-actions">
+                    <span class="pill ${a.status === 'ACTIVE' ? 'active' : 'inactive'}">${a.status}</span>
+                    <button class="secondary" style="padding:4px 8px;" onclick="toggleStatus(${a.id}, '${a.status}')">
+                        ${a.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                    </button>
+                </div>
+            </div>`).join('');
+    }
+
+    window.toggleStatus = async (id, current) => {
+        const next = current === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+        try { await Api.put(`/api/accounts/${id}/status`, { status: next }); await loadAccounts(); }
+        catch (e) { $('accountError').textContent = e.message; }
+    };
+
+    $('addAccountBtn').onclick = async () => {
+        $('accountError').textContent = '';
+        try {
+            $('addAccountBtn').disabled = true;
+            await Api.post('/api/accounts', {
+                provider: $('newProvider').value,
+                emailAddress: $('newEmail').value.trim(),
+                appPassword: $('newPassword').value
+            });
+            $('newEmail').value = ''; $('newPassword').value = '';
+            await loadAccounts();
+        } catch (e) { $('accountError').textContent = e.message; }
+        finally { $('addAccountBtn').disabled = false; }
+    };
+
+    function showBanner(text) {
+        const b = $('banner');
+        b.textContent = text;
+        b.style.display = 'block';
+        setTimeout(() => { b.style.display = 'none'; }, 4000);
+    }
+
+    function connectWebSocket() {
+        const client = new StompJs.Client({
+            webSocketFactory: () => new SockJS('/ws'),
+            connectHeaders: { Authorization: 'Bearer ' + Api.getToken() },
+            reconnectDelay: 5000,
+            onConnect: () => {
+                client.subscribe('/user/queue/notifications', (frame) => {
+                    const payload = JSON.parse(frame.body);
+                    // A sync run delivered new mail — refresh sync status pills.
+                    if (payload.type === 'NEW_MAIL') {
+                        showBanner(payload.message + ' (' + payload.count + ')');
+                        loadAccounts();
+                    }
+                });
+            }
+        });
+        client.activate();
+    }
+
+    loadAccounts();
+    connectWebSocket();
+</script>
+</body>
+</html>

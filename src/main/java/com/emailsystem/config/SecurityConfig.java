@@ -39,7 +39,7 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.GET,
                                 "/", "/index.html", "/login.html", "/inbox.html",
-                                "/detail.html", "/css/**", "/js/**", "/favicon.ico").permitAll()
+                                "/detail.html", "/css/**", "/js/**", "/favicon.ico", "/accounts.html").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
