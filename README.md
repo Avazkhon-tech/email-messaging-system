@@ -1,11 +1,13 @@
 # Email Messaging System
 
-Bir nechta pochta qutilarini (Gmail, Outlook, Yahoo) bitta hisobga ulab, xat
-yuborish, qidiruvli inboxni ko'rish va yangi xatlar haqida real vaqtda
-bildirishnoma olish imkonini beruvchi backend. Spring Boot 3 / Java 17 da yozilgan.
+Bir nechta pochta qutilarini bitta hisobga ulab, xat yuborish, qidiruvli inboxni
+ko'rish va yangi xatlar haqida real vaqtda bildirishnoma olish imkonini beruvchi
+backend. Spring Boot 3 / Java 17 da yozilgan. **Gmail** OAuth2 + Gmail Watch API
+(push) orqali, **Outlook / Yahoo** esa IMAP/SMTP orqali ishlaydi.
 
 **Texnologiyalar:** Java 17, Spring Boot 3, Spring Security (JWT), Spring WebSocket
-(STOMP), Spring Data JPA, Jakarta Mail (IMAP/SMTP), PostgreSQL + Flyway, Caffeine cache.
+(STOMP), Spring Data JPA, Jakarta Mail (IMAP/SMTP), Gmail API + Google Cloud Pub/Sub,
+PostgreSQL + Flyway, Caffeine cache.
 
 ---
 
@@ -27,10 +29,14 @@ hammasida default qiymatlar bor. testlash oson bo'lishi uchun
 |---|---|
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | PostgreSQL ulanishi |
 | `JWT_SECRET` | base64, ≥32 bayt |
-| `CREDENTIAL_AES_KEY` | base64 AES kalit (pochta parollarini shifrlash uchun) |
+| `CREDENTIAL_AES_KEY` | base64 AES kalit (parol/refresh token shifrlash uchun) |
+| `GOOGLE_ENABLED` | `true` bo'lsa Gmail ulanishi va Pub/Sub subscriber yoqiladi |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | OAuth2 web client (Google Cloud console) |
+| `GCP_PROJECT_ID`, `GMAIL_PUBSUB_TOPIC`, `GMAIL_PUBSUB_SUBSCRIPTION` | Pub/Sub manzillari |
 
 > `application.yml` da faqat dev uchun ishlaydigan default qiymatlar bor — ularni
-> hech qachon production'ga chiqarmang.
+> hech qachon production'ga chiqarmang. `GOOGLE_ENABLED=false` bo'lsa Gmail funksiyasi
+> o'chiq, qolgan hammasi ishlayveradi.
 
 ---
 
@@ -48,17 +54,19 @@ com.emailsystem
 ├── user/       User entity + repository
 ├── account/    Ulangan pochta qutilari CRUD (egasi bo'yicha cheklangan)
 ├── message/    yuborish / inbox (sahifali, qidiruvli) / detail
-├── provider/   EmailProviderClient → JakartaMailClient (IMAP/SMTP)
+├── provider/   EmailProviderClient, ProviderClientRouter (Gmail→API, qolgani→IMAP)
+├── gmail/      Gmail API client, watch lifecycle, history sync, Pub/Sub subscriber
+├── oauth/      Gmail OAuth2 ulash oqimi (authorize / callback)
 ├── sync/       MailSyncService (@Scheduled) + AccountSyncWorker
 └── realtime/   STOMP config, JWT handshake, NotificationService
 ```
 
-### sync qilish jarayoni
+### Yangi xatni qabul qilish
 
 ```
-@Scheduled poll → MailSyncService → AccountSyncWorker (faol akkauntlar uchun)
-   → IMAP'dan fetch → (accountId, messageId) bo'yicha dedup → EmailMessage saqlash
-   → NewMailEvent → NotificationService → WebSocket orqali foydalanuvchiga push
+Gmail (push):  Gmail watch → Pub/Sub → GmailPushSubscriber → history.list → dedup
+                  → EmailMessage saqlash → NewMailEvent → WebSocket push
+Outlook/Yahoo: @Scheduled poll → AccountSyncWorker → IMAP fetch → dedup → ... → push
 ```
 
 ---
@@ -84,16 +92,24 @@ WebSocket ustida **STOMP** (brauzer tomonda SockJS) ishlatiladi.
 
 ## Provider integratsiyasi
 
-Tashqi email serverlari bilan ishlash to'liq `provider` papkasi ichiga ajratilgan,
-- `EmailProviderClient` — interface, yagona implementatsiyasi
-  `JakartaMailClient` (Jakarta Mail: IMAP'dan o'qish, SMTP orqali yuborish).
-- Akkaunt yaratilganda `DefaultProviderEndpointResolver` `Provider` enum'iga qarab
-  IMAP/SMTP host/port/TLS qiymatlarini avtomatik to'ldiradi.
-- Pochta paroli (app password) hech qachon ochiq saqlanmaydi —
-  `CredentialCipher` (AES-GCM) bilan shifrlanadi, faqat yuborish/o'qish paytida
-  deshifrlanadi.
-- Tarmoq xatolarida `JakartaMailClient` Spring Retry bilan qayta urinadi; bardosh
-  qila olmasa `ProviderException` tashlaydi.
+Tashqi email serverlari bilan ishlash `provider`, `gmail` va `oauth` papkalariga ajratilgan.
+- `EmailProviderClient` — interface; `ProviderClientRouter` (@Primary) akkauntga qarab
+  Gmail'ni `GmailApiClient` (Gmail REST API), qolganini `JakartaMailClient` (IMAP/SMTP) ga yo'naltiradi.
+- Parol/refresh token hech qachon ochiq saqlanmaydi — `CredentialCipher` (AES-GCM) bilan
+  shifrlanadi, faqat ishlatish paytida deshifrlanadi.
+
+### Gmail Watch (real-time push)
+
+Gmail faqat **OAuth2** bilan ishlaydi (app password emas). Ulanish: foydalanuvchi
+*Connect Gmail* → Google consent → `/api/oauth/google/callback` refresh token oladi,
+akkauntni saqlaydi va `users.watch` ni yoqadi. Gmail har bir o'zgarishda Pub/Sub
+topic'ga `{emailAddress, historyId}` yuboradi; ilova ichidagi **pull subscriber**
+(`GmailPushSubscriber`) buni qabul qilib `history.list` orqali yangi xatlarni oladi.
+Watch 7 kunda tugaydi — `GmailWatchService` uni avtomatik yangilab turadi.
+
+Sozlash uchun GCP'da: Gmail + Pub/Sub API yoqish, topic + pull subscription, OAuth web
+client (`redirect: http://localhost:8080/api/oauth/google/callback`), va Pub/Sub uchun
+ADC (`gcloud auth application-default login`).
 
 ---
 
@@ -104,8 +120,10 @@ Tashqi email serverlari bilan ishlash to'liq `provider` papkasi ichiga ajratilga
 | POST | `/api/auth/register` | ro'yxatdan o'tish, JWT qaytaradi |
 | POST | `/api/auth/login` | kirish, JWT qaytaradi |
 | GET | `/api/accounts` | ulangan pochta qutilari ro'yxati |
-| POST | `/api/accounts` | yangi pochta qutisi ulash |
+| POST | `/api/accounts` | yangi pochta qutisi ulash (Outlook/Yahoo; Gmail rad etiladi) |
 | PUT | `/api/accounts/{id}/status` | akkaunt statusini o'zgartirish |
+| GET | `/api/oauth/google/authorize` | Gmail OAuth consent URL'ini qaytaradi |
+| GET | `/api/oauth/google/callback` | OAuth callback (Gmail'ni ulaydi, public) |
 | GET | `/api/messages?search=` | inbox (sahifali, qidiruvli) |
 | GET | `/api/messages/{id}` | xat tafsiloti (o'qilgan deb belgilaydi) |
 | POST | `/api/messages/send` | xat yuborish (asinxron, `202 Accepted`) |
