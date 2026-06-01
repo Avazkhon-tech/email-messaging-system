@@ -31,12 +31,15 @@
                 <option value="OUTLOOK">Outlook / Hotmail</option>
                 <option value="YAHOO">Yahoo</option>
             </select>
-            <input id="newEmail" type="email" placeholder="account@gmail.com">
+            <input id="newEmail" type="email" placeholder="account@example.com">
             <input id="newPassword" type="password" placeholder="app password">
             <button id="addAccountBtn">Connect</button>
         </div>
-        <p class="muted" style="margin-top:8px;">
+        <p class="muted" id="pwHint" style="margin-top:8px;">
             Use an <strong>app password</strong>, not your real account password.
+        </p>
+        <p class="muted" id="gmailHint" style="margin-top:8px; display:none;">
+            Gmail uses secure <strong>Google sign-in</strong>. Click <em>Connect Gmail</em> to grant access.
         </p>
     </div>
 
@@ -94,10 +97,29 @@
         catch (e) { $('accountError').textContent = e.message; }
     };
 
+    function updateProviderForm() {
+        const isGmail = $('newProvider').value === 'GMAIL';
+        $('newEmail').style.display = isGmail ? 'none' : '';
+        $('newPassword').style.display = isGmail ? 'none' : '';
+        $('pwHint').style.display = isGmail ? 'none' : '';
+        $('gmailHint').style.display = isGmail ? '' : 'none';
+        $('addAccountBtn').textContent = isGmail ? 'Connect Gmail' : 'Connect';
+    }
+    $('newProvider').onchange = updateProviderForm;
+
+    async function connectGmail() {
+        const resp = await Api.get('/api/oauth/google/authorize');
+        window.location = resp.authorizationUrl;
+    }
+
     $('addAccountBtn').onclick = async () => {
         $('accountError').textContent = '';
         try {
             $('addAccountBtn').disabled = true;
+            if ($('newProvider').value === 'GMAIL') {
+                await connectGmail();
+                return;
+            }
             await Api.post('/api/accounts', {
                 provider: $('newProvider').value,
                 emailAddress: $('newEmail').value.trim(),
@@ -135,6 +157,13 @@
         client.activate();
     }
 
+    const gmailResult = new URLSearchParams(window.location.search).get('gmail');
+    if (gmailResult === 'connected') showBanner('Gmail account connected');
+    else if (gmailResult === 'denied') $('accountError').textContent = 'Gmail access was denied';
+    else if (gmailResult) $('accountError').textContent = 'Could not connect Gmail. Please try again.';
+    if (gmailResult) history.replaceState(null, '', '/accounts.html');
+
+    updateProviderForm();
     loadAccounts();
     connectWebSocket();
 </script>
