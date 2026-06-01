@@ -13,6 +13,11 @@ PostgreSQL + Flyway, Caffeine cache.
 
 ## Ishga tushirish
 
+/secrets papka ichida berilgan pubsub-sa.json fayl ni joylashtirish kerak
+.env file ni ham / ga quyish kerak
+
+private message da tashlab beriladi
+
 
 ishga tushirish uchun docker o'rnatilgan bulishi kerak
 
@@ -23,8 +28,6 @@ docker compose up --build
 kiritish mumkin bo'lgan `env` o'zgaruvchilar ro'yxati (
 `.env.example`):
 
-hammasida default qiymatlar bor. testlash oson bo'lishi uchun
-
 | O'zgaruvchi | Izoh |
 |---|---|
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | PostgreSQL ulanishi |
@@ -34,9 +37,6 @@ hammasida default qiymatlar bor. testlash oson bo'lishi uchun
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | OAuth2 web client (Google Cloud console) |
 | `GCP_PROJECT_ID`, `GMAIL_PUBSUB_TOPIC`, `GMAIL_PUBSUB_SUBSCRIPTION` | Pub/Sub manzillari |
 
-> `application.yml` da faqat dev uchun ishlaydigan default qiymatlar bor — ularni
-> hech qachon production'ga chiqarmang. `GOOGLE_ENABLED=false` bo'lsa Gmail funksiyasi
-> o'chiq, qolgan hammasi ishlayveradi.
 
 ---
 
