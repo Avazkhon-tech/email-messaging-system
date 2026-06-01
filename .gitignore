@@ -30,7 +30,10 @@ target/
 
 ### Env / secrets ###
 env
+.env
 *.local
+pubsub-sa.json
+*-sa.json
 
 ### OS ###
 .DS_Store

@@ -49,6 +49,23 @@ app:
     maximum-size: ${CACHE_MAX_SIZE:10000}
 
     expire-after-write-seconds: ${CACHE_TTL_SECONDS:300}
+  google:
+
+    enabled: ${GOOGLE_ENABLED:false}
+
+    client-id: ${GOOGLE_CLIENT_ID:}
+
+    client-secret: ${GOOGLE_CLIENT_SECRET:}
+
+    redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/api/oauth/google/callback}
+
+    success-redirect: ${GOOGLE_SUCCESS_REDIRECT:/accounts.html}
+
+    project-id: ${GCP_PROJECT_ID:}
+
+    pubsub-topic: ${GMAIL_PUBSUB_TOPIC:gmail-push}
+
+    pubsub-subscription: ${GMAIL_PUBSUB_SUBSCRIPTION:gmail-push-sub}
 
 logging:
   level:

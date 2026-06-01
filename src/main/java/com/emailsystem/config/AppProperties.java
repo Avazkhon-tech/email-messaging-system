@@ -6,6 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Component
 @ConfigurationProperties(prefix = "app")
 @Getter
@@ -26,6 +28,9 @@ public class AppProperties {
 
     @NestedConfigurationProperty
     private Cache cache = new Cache();
+
+    @NestedConfigurationProperty
+    private Google google = new Google();
 
     @Getter
     @Setter
@@ -65,5 +70,35 @@ public class AppProperties {
         private long maximumSize = 10_000L;
 
         private long expireAfterWriteSeconds = 300L;
+    }
+
+    @Getter
+    @Setter
+    public static class Google {
+
+        private String clientId;
+        private String clientSecret;
+
+        private String redirectUri = "http://localhost:8080/api/oauth/google/callback";
+
+        private String successRedirect = "/accounts.html";
+
+        private String projectId;
+        private String pubsubTopic;
+        private String pubsubSubscription;
+
+        private List<String> scopes = List.of(
+                "https://www.googleapis.com/auth/gmail.readonly",
+                "https://www.googleapis.com/auth/gmail.send");
+
+        private boolean enabled = false;
+
+        public String topicName() {
+            return "projects/" + projectId + "/topics/" + pubsubTopic;
+        }
+
+        public String subscriptionName() {
+            return "projects/" + projectId + "/subscriptions/" + pubsubSubscription;
+        }
     }
 }

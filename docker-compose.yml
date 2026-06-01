@@ -32,7 +32,22 @@ services:
       SYNC_FETCH_LIMIT: ${SYNC_FETCH_LIMIT:-50}
       MAIL_TIMEOUT_MS: ${MAIL_TIMEOUT_MS:-30000}
 
+      # ---- Gmail Watch API (OAuth2 + Pub/Sub) ----
+      GOOGLE_ENABLED: ${GOOGLE_ENABLED:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8080/api/oauth/google/callback}
+      GOOGLE_SUCCESS_REDIRECT: ${GOOGLE_SUCCESS_REDIRECT:-/accounts.html}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
+      GMAIL_PUBSUB_TOPIC: ${GMAIL_PUBSUB_TOPIC:-gmail-push}
+      GMAIL_PUBSUB_SUBSCRIPTION: ${GMAIL_PUBSUB_SUBSCRIPTION:-gmail-push-sub}
+      # Path inside the container; the host key file is mounted read-only below.
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/secrets/pubsub-sa.json}
+
       JAVA_TOOL_OPTIONS: "-Djava.net.preferIPv4Stack=true"
+    volumes:
+      # Mount the Pub/Sub service-account key (set PUBSUB_SA_KEY_FILE on the host).
+      - ${PUBSUB_SA_KEY_FILE:-./pubsub-sa.json}:/secrets/pubsub-sa.json:ro
     ports:
       - "8080:8080"
 
