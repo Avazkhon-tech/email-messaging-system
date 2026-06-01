@@ -43,11 +43,18 @@ public class GmailPushSubscriber implements SmartLifecycle {
         }
         ProjectSubscriptionName subscription =
                 ProjectSubscriptionName.of(g.getProjectId(), g.getPubsubSubscription());
-        MessageReceiver receiver = this::receive;
-        subscriber = Subscriber.newBuilder(subscription, receiver).build();
-        subscriber.startAsync().awaitRunning();
-        running = true;
-        log.info("Gmail Pub/Sub subscriber started on {}", subscription);
+        try {
+            MessageReceiver receiver = this::receive;
+            subscriber = Subscriber.newBuilder(subscription, receiver).build();
+            subscriber.startAsync().awaitRunning();
+            running = true;
+            log.info("Gmail Pub/Sub subscriber started on {}", subscription);
+        } catch (Exception e) {
+            log.error("Gmail Pub/Sub subscriber failed to start on {} (check credentials / "
+                    + "GOOGLE_APPLICATION_CREDENTIALS); Gmail push disabled. Cause: {}",
+                    subscription, e.getMessage());
+            subscriber = null;
+        }
     }
 
     private void receive(PubsubMessage message, AckReplyConsumer reply) {

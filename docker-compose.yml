@@ -41,13 +41,12 @@ services:
       GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
       GMAIL_PUBSUB_TOPIC: ${GMAIL_PUBSUB_TOPIC:-gmail-push}
       GMAIL_PUBSUB_SUBSCRIPTION: ${GMAIL_PUBSUB_SUBSCRIPTION:-gmail-push-sub}
-      # Path inside the container; the host key file is mounted read-only below.
-      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/secrets/pubsub-sa.json}
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/pubsub-sa.json
 
       JAVA_TOOL_OPTIONS: "-Djava.net.preferIPv4Stack=true"
     volumes:
-      # Mount the Pub/Sub service-account key (set PUBSUB_SA_KEY_FILE on the host).
-      - ${PUBSUB_SA_KEY_FILE:-./pubsub-sa.json}:/secrets/pubsub-sa.json:ro
+      # Mount the secrets directory read-only. Place pubsub-sa.json here to enable Gmail.
+      - ./secrets:/secrets:ro
     ports:
       - "8080:8080"
 

@@ -34,6 +34,8 @@ env
 *.local
 pubsub-sa.json
 *-sa.json
+secrets/*
+!secrets/.gitkeep
 
 ### OS ###
 .DS_Store
@@ -41,3 +43,4 @@ pubsub-sa.json
 CLAUDE.md
 
 .files
+.claude
