@@ -18,8 +18,7 @@ import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.search.ComparisonTerm;
 import jakarta.mail.search.ReceivedDateTerm;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
@@ -32,10 +31,10 @@ import java.util.List;
 import java.util.Properties;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Component
 public class JakartaMailClient implements EmailProviderClient {
 
-    private static final Logger log = LoggerFactory.getLogger(JakartaMailClient.class);
     private static final int PREVIEW_LENGTH = 200;
 
     private final CredentialCipher cipher;

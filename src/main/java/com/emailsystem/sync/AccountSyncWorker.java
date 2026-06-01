@@ -12,8 +12,7 @@ import com.emailsystem.provider.EmailProviderClient;
 import com.emailsystem.provider.FetchedMessage;
 import com.emailsystem.realtime.NewMailEvent;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.context.ApplicationEventPublisher;
@@ -24,11 +23,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class AccountSyncWorker {
-
-    private static final Logger log = LoggerFactory.getLogger(AccountSyncWorker.class);
 
     private final EmailAccountRepository accountRepository;
     private final EmailMessageRepository messageRepository;

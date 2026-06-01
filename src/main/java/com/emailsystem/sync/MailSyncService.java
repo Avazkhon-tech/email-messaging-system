@@ -3,19 +3,17 @@ package com.emailsystem.sync;
 import com.emailsystem.account.EmailAccount;
 import com.emailsystem.account.EmailAccountRepository;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MailSyncService {
-
-    private static final Logger log = LoggerFactory.getLogger(MailSyncService.class);
 
     private final EmailAccountRepository accountRepository;
     private final AccountSyncWorker worker;
