@@ -1,215 +1,124 @@
 # Email Messaging System
 
-A multi-account email client backend: connect Gmail / Outlook / Yahoo mailboxes, send
-mail, browse a searchable inbox, and receive **real-time** new-mail notifications. The
-focus is backend logic, provider integration, and real-time delivery; a deliberately
-simple static frontend is included.
+Bir nechta pochta qutilarini (Gmail, Outlook, Yahoo) bitta hisobga ulab, xat
+yuborish, qidiruvli inboxni ko'rish va yangi xatlar haqida real vaqtda
+bildirishnoma olish imkonini beruvchi backend. Spring Boot 3 / Java 17 da yozilgan.
 
-- **Backend:** Java 17, Spring Boot 3.2, Spring Security (JWT), Spring WebSocket (STOMP),
-  Spring Data JPA, Jakarta Mail (IMAP/SMTP), PostgreSQL, Flyway.
-- **Frontend:** static HTML + vanilla JS (SockJS/STOMP), served by the backend.
-- **Tests:** JUnit 5 + Mockito (unit), GreenMail (provider integration), Testcontainers
-  (full API flow on real PostgreSQL).
+**Texnologiyalar:** Java 17, Spring Boot 3, Spring Security (JWT), Spring WebSocket
+(STOMP), Spring Data JPA, Jakarta Mail (IMAP/SMTP), PostgreSQL + Flyway, Caffeine cache.
 
 ---
 
-## Architecture
+## Ishga tushirish
 
-Layered, feature-packaged. Controllers are thin (validation + delegation), services hold
-business logic, repositories are Spring Data JPA, and DTOs sit at the API boundary so
-entities never leak.
 
-```
-com.emailsystem
-├── config/      Security, WebSocket, Async, Scheduling, typed app properties
-├── common/      GlobalExceptionHandler + ApiError + domain exceptions
-├── security/    JwtService, JwtAuthFilter, AuthUser principal, @CurrentUser
-├── crypto/      CredentialCipher (AES-256-GCM for stored app passwords)
-├── auth/        register / login
-├── user/        User entity + repository
-├── account/     EmailAccount CRUD + status toggle (ownership-scoped)
-├── message/     send / inbox (paged, sortable, searchable) / detail (read flip)
-├── provider/    EmailProviderClient → JakartaMailClient (IMAP fetch + SMTP send)
-├── sync/        MailSyncService (scheduled) + AccountSyncWorker (per-account, dedup)
-└── realtime/    STOMP config, JWT handshake auth, NotificationService
-```
-
-### Request → data flow (inbound mail)
-
-```
-@Scheduled poll ─▶ AccountSyncWorker (per active account, own tx)
-                     │  fetch via IMAP (since last_synced_at)
-                     │  skip rows already stored  (dedup)
-                     │  persist new EmailMessages
-                     └─▶ publish NewMailEvent  ── AFTER_COMMIT ──▶ NotificationService
-                                                                      │ STOMP
-                                                                      ▼
-                                                  /user/queue/notifications  ──▶ browser
-```
-
----
-
-## How real-time works
-
-1. A STOMP endpoint is exposed at `/ws` (SockJS fallback enabled).
-2. The browser opens the socket and sends the JWT in the STOMP **CONNECT** frame
-   (`Authorization: Bearer <token>`). `StompAuthChannelInterceptor` validates it and binds
-   a principal **named by user id**.
-3. When the sync pipeline persists new messages, `AccountSyncWorker` publishes an
-   in-process `NewMailEvent`.
-4. `NotificationService` listens **after the transaction commits** (so the client never
-   gets a notification for a message it can't yet read) and pushes a payload to
-   `/user/queue/notifications`. Spring's user-destination resolution routes it to the
-   correct user's socket only.
-5. The frontend shows a "New message received" banner and auto-refreshes the inbox.
-
-The event → transport split (Spring `ApplicationEvent`) means swapping the in-process bus
-for **Kafka/RabbitMQ** later only touches the publisher/listener, not the sync logic.
-
----
-
-## Provider integration
-
-`JakartaMailClient` talks **IMAP** (fetch) and **SMTP** (send) over SSL/STARTTLS, uniformly
-across providers. Host/port per provider live in `ProviderEndpoints`, resolved through
-`ProviderEndpointResolver` (a seam that also lets tests point at an in-memory server).
-
-| Provider | IMAP                       | SMTP                      |
-|----------|----------------------------|---------------------------|
-| Gmail    | imap.gmail.com:993         | smtp.gmail.com:587        |
-| Outlook  | outlook.office365.com:993  | smtp.office365.com:587    |
-| Yahoo    | imap.mail.yahoo.com:993    | smtp.mail.yahoo.com:587   |
-
-**Credentials = app passwords.** Gmail and Yahoo require an *app password* (with 2FA
-enabled) rather than the normal login password; this maps to the spec's "access token or
-app password". The app password is **encrypted at rest** with AES-256-GCM
-(`CredentialCipher`) and never returned by any API. When an account is connected, the
-backend first verifies the credentials against the provider's IMAP server and rejects them
-fast (HTTP 502) if they don't authenticate.
-
-> Generating a Gmail app password: Google Account → Security → 2-Step Verification →
-> App passwords. Use that 16-character value as `appPassword`.
-
-### Sync & deduplication
-
-A scheduled poller (`app.sync.interval-ms`, default 60s) syncs every **ACTIVE** account in
-its own transaction. Deduplication is enforced two ways: a `UNIQUE (account_id,
-external_message_id)` constraint in the database, plus an existence check before insert.
-Each account stores `last_synced_at` and `last_sync_status`, and one failing mailbox never
-aborts the others.
-
----
-
-## Running
-
-### Option A — Docker (recommended)
+ishga tushirish uchun docker o'rnatilgan bulishi kerak
 
 ```bash
-cp env.example env
-# (optional) generate strong secrets:
-#   openssl rand -base64 48   # -> JWT_SECRET
-#   openssl rand -base64 32   # -> CREDENTIAL_AES_KEY
 docker compose up --build
 ```
 
-App: http://localhost:8080  ·  PostgreSQL: localhost:5432
+kiritish mumkin bo'lgan `env` o'zgaruvchilar ro'yxati (
+`.env.example`):
 
-### Option B — Local (Maven + your own PostgreSQL)
+hammasida default qiymatlar bor. testlash oson bo'lishi uchun
 
-```bash
-createdb emaildb   # or use an existing instance
-export DB_URL=jdbc:postgresql://localhost:5432/emaildb
-export DB_USERNAME=emailuser DB_PASSWORD=emailpass
-export JWT_SECRET=$(openssl rand -base64 48)
-export CREDENTIAL_AES_KEY=$(openssl rand -base64 32)
-mvn spring-boot:run
-```
+| O'zgaruvchi | Izoh |
+|---|---|
+| `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | PostgreSQL ulanishi |
+| `JWT_SECRET` | base64, ≥32 bayt |
+| `CREDENTIAL_AES_KEY` | base64 AES kalit (pochta parollarini shifrlash uchun) |
 
-Flyway creates the schema on first boot. Open http://localhost:8080 → register → connect
-an account → inbox.
-
-### Configuration (environment variables)
-
-See `.env.example`. Key ones: `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`, `JWT_SECRET`
-(Base64, ≥32 bytes), `CREDENTIAL_AES_KEY` (Base64 16/24/32 bytes), `SYNC_INTERVAL_MS`.
+> `application.yml` da faqat dev uchun ishlaydigan default qiymatlar bor — ularni
+> hech qachon production'ga chiqarmang.
 
 ---
 
-## API
+## Arxitektura
 
-All `/api/**` routes except `/api/auth/**` require `Authorization: Bearer <jwt>`.
+Kod **feature bo'yicha** bo'lingan (`com.emailsystem`)
 
-| Method | Path                          | Description                                   |
-|--------|-------------------------------|-----------------------------------------------|
-| POST   | `/api/auth/register`          | Create account → `{token, userId, ...}`       |
-| POST   | `/api/auth/login`             | Authenticate → `{token, ...}`                 |
-| POST   | `/api/accounts`               | Connect a mailbox (verifies + encrypts)       |
-| GET    | `/api/accounts`               | List the caller's accounts                    |
-| PUT    | `/api/accounts/{id}/status`   | Activate / deactivate an account              |
-| POST   | `/api/messages/send`          | Send an email (HTML supported)                |
-| GET    | `/api/messages`               | Inbox: `?page&size&sort&search`               |
-| GET    | `/api/messages/{id}`          | Full message; marks it read                   |
-| WS     | `/ws` → `/user/queue/notifications` | Real-time new-mail notifications        |
+```
+com.emailsystem
+├── config/     Security, WebSocket, Async, Cache, AppProperties
+├── common/     GlobalExceptionHandler → ApiError (domen exception'lari)
+├── security/   JwtService, JwtAuthFilter, AuthUser, @CurrentUser
+├── crypto/     CredentialCipher (AES-GCM — pochta paroli shifrlangan saqlanadi)
+├── auth/       register / login (JWT beradi)
+├── user/       User entity + repository
+├── account/    Ulangan pochta qutilari CRUD (egasi bo'yicha cheklangan)
+├── message/    yuborish / inbox (sahifali, qidiruvli) / detail
+├── provider/   EmailProviderClient → JakartaMailClient (IMAP/SMTP)
+├── sync/       MailSyncService (@Scheduled) + AccountSyncWorker
+└── realtime/   STOMP config, JWT handshake, NotificationService
+```
 
-### Examples
+### sync qilish jarayoni
 
-```bash
-# Register
-curl -s localhost:8080/api/auth/register -H 'Content-Type: application/json' \
-  -d '{"fullname":"Jane","email":"jane@example.com","password":"password123"}'
-
-TOKEN=...   # token from the response
-
-# Connect a Gmail account (use a Gmail app password)
-curl -s localhost:8080/api/accounts -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"provider":"GMAIL","emailAddress":"you@gmail.com","appPassword":"abcd efgh ijkl mnop"}'
-
-# Inbox (paged + search)
-curl -s "localhost:8080/api/messages?page=0&size=20&search=invoice" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Send
-curl -s localhost:8080/api/messages/send -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"accountId":1,"recipients":["bob@example.com"],"subject":"Hi","body":"<b>Hello</b>","html":true}'
+```
+@Scheduled poll → MailSyncService → AccountSyncWorker (faol akkauntlar uchun)
+   → IMAP'dan fetch → (accountId, messageId) bo'yicha dedup → EmailMessage saqlash
+   → NewMailEvent → NotificationService → WebSocket orqali foydalanuvchiga push
 ```
 
 ---
 
-## Security
+## Realtime qanday ishlaydi
 
-- Passwords hashed with BCrypt; stateless JWT auth; no server-side sessions.
-- Email app passwords encrypted with AES-256-GCM; never exposed by the API.
-- Strict per-user isolation: every account/message query is scoped by `userId`
-  (`findByIdAndUserId`, ownership-checked inbox/detail queries).
-- WebSocket connections are authenticated on the STOMP CONNECT frame.
-- All errors return a consistent `ApiError` JSON (`GlobalExceptionHandler`): 400 validation,
-  401 auth, 404 not-found, 409 conflict, 502 provider failures.
-- All secrets are supplied via environment variables.
+WebSocket ustida **STOMP** (brauzer tomonda SockJS) ishlatiladi.
 
----
-
-## Testing
-
-```bash
-mvn test
-```
-
-- **Unit (Mockito):** auth, message service (validation + read-status flip), credential
-  cipher, and sync **dedup** logic.
-- **Provider integration (GreenMail):** real IMAP/SMTP send→fetch round-trip, no network.
-- **Full API flow (Testcontainers + PostgreSQL + Flyway):** register → connect → sync →
-  inbox/search → read → send, plus ownership isolation and auth enforcement.
-  *Auto-skips when Docker is unavailable.*
+1. **Ulanish:** klient `/ws` endpoint'iga ulanadi.
+2. **Autentifikatsiya:** `StompAuthChannelInterceptor` STOMP `CONNECT` freymidagi
+   `Authorization: Bearer <jwt>` sarlavhasini tekshiradi va `StompPrincipal`
+   o'rnatadi. Token bo'lmasa yoki noto'g'ri bo'lsa — ulanish rad etiladi.
+3. **Broker:** in-memory broker `/queue` va `/topic` ustida ishlaydi;
+   foydalanuvchi prefiksi `/user`, ilova prefiksi `/app`.
+4. **Push:** yangi xat saqlanib tranzaksiya **commit bo'lgandan keyin**
+   (`@TransactionalEventListener AFTER_COMMIT`) `NotificationService` hodisani
+   asinxron qabul qiladi va `convertAndSendToUser` bilan faqat o'sha foydalanuvchiga
+   yuboradi.
+5. **Klient obunasi:** `/user/queue/notifications`. Payload `type` maydoni bilan
+   keladi — `NEW_MAIL` (yangi xat) yoki `MESSAGE_SENT` (yuborish natijasi).
 
 ---
 
-## Notable design choices & possible extensions
+## Provider integratsiyasi
 
-- Real-time uses **in-process Spring events**; the event/transport seam makes a
-  **Kafka/RabbitMQ** swap localized. (Listed as optional in the brief.)
-- Provider access uses **IMAP/SMTP app passwords** for uniform multi-provider support;
-  the `EmailProviderClient` interface leaves room for a **Gmail-API/OAuth2** implementation.
-- Retry on transient SMTP failures via Spring Retry (`@Retryable`).
-- A **Redis** cache for hot inbox reads is a natural next optimization.
+Tashqi email serverlari bilan ishlash to'liq `provider` papkasi ichiga ajratilgan,
+- `EmailProviderClient` — interface, yagona implementatsiyasi
+  `JakartaMailClient` (Jakarta Mail: IMAP'dan o'qish, SMTP orqali yuborish).
+- Akkaunt yaratilganda `DefaultProviderEndpointResolver` `Provider` enum'iga qarab
+  IMAP/SMTP host/port/TLS qiymatlarini avtomatik to'ldiradi.
+- Pochta paroli (app password) hech qachon ochiq saqlanmaydi —
+  `CredentialCipher` (AES-GCM) bilan shifrlanadi, faqat yuborish/o'qish paytida
+  deshifrlanadi.
+- Tarmoq xatolarida `JakartaMailClient` Spring Retry bilan qayta urinadi; bardosh
+  qila olmasa `ProviderException` tashlaydi.
+
+---
+
+## API (qisqacha)
+
+| Metod | Endpoint | Izoh |
+|---|---|---|
+| POST | `/api/auth/register` | ro'yxatdan o'tish, JWT qaytaradi |
+| POST | `/api/auth/login` | kirish, JWT qaytaradi |
+| GET | `/api/accounts` | ulangan pochta qutilari ro'yxati |
+| POST | `/api/accounts` | yangi pochta qutisi ulash |
+| PUT | `/api/accounts/{id}/status` | akkaunt statusini o'zgartirish |
+| GET | `/api/messages?search=` | inbox (sahifali, qidiruvli) |
+| GET | `/api/messages/{id}` | xat tafsiloti (o'qilgan deb belgilaydi) |
+| POST | `/api/messages/send` | xat yuborish (asinxron, `202 Accepted`) |
+
+Barcha `/api/**` so'rovlari (auth'dan tashqari) `Authorization: Bearer <jwt>` talab qiladi.
+
+---
+
+## Testlar
+
+JUnit 5, uch xil uslub:
+- **Unit (Mockito):** `AuthServiceTest`, `MessageServiceTest`, `AccountSyncWorkerTest` h.k.
+- **`ApiFlowTest`:** `@SpringBootTest` + Testcontainers (haqiqiy PostgreSQL); Docker
+  bo'lmasa avtomatik skip bo'ladi.
+- **`JakartaMailClientGreenMailTest`:** GreenMail bilan in-memory IMAP/SMTP — provider
+  integratsiyasini uchma-uch tekshiradi.
