@@ -4,7 +4,8 @@ import com.emailsystem.account.EmailAccount;
 import com.emailsystem.account.EmailAccountRepository;
 import com.emailsystem.message.EmailMessage;
 import com.emailsystem.message.EmailMessageRepository;
-import com.emailsystem.provider.EmailProviderClient;
+import com.emailsystem.gmail.GmailApiClient;
+import com.emailsystem.provider.JakartaMailClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -49,7 +50,8 @@ class ApiFlowTest {
     @Autowired EmailAccountRepository accountRepository;
     @Autowired EmailMessageRepository messageRepository;
 
-    @MockBean EmailProviderClient providerClient;
+    @MockBean JakartaMailClient jakartaMailClient;
+    @MockBean GmailApiClient gmailApiClient;
 
     @Test
     void fullFlow_registerConnectSyncReadAndIsolation() throws Exception {
@@ -60,7 +62,7 @@ class ApiFlowTest {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"provider":"GMAIL","emailAddress":"alice@gmail.com","appPassword":"secret"}"""))
+                                {"provider":"OUTLOOK","emailAddress":"alice@outlook.com","appPassword":"secret"}"""))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
                 .andReturn().getResponse().getContentAsString();
@@ -70,7 +72,7 @@ class ApiFlowTest {
                 .externalMessageId("<msg-1@server>")
                 .accountId(accountId)
                 .sender("bob@example.com")
-                .recipients("alice@gmail.com")
+                .recipients("alice@outlook.com")
                 .subject("Project update")
                 .body("Here is the latest")
                 .preview("Here is the latest")
@@ -116,7 +118,18 @@ class ApiFlowTest {
         mockMvc.perform(get("/api/messages")).andExpect(status().isUnauthorized());
 
         EmailAccount stored = accountRepository.findById(accountId).orElseThrow();
-        org.assertj.core.api.Assertions.assertThat(stored.getEmailAddress()).isEqualTo("alice@gmail.com");
+        org.assertj.core.api.Assertions.assertThat(stored.getEmailAddress()).isEqualTo("alice@outlook.com");
+    }
+
+    @Test
+    void gmailViaAppPasswordIsRejected() throws Exception {
+        String token = register("Gina", "gina@example.com", "password123");
+        mockMvc.perform(post("/api/accounts")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"provider":"GMAIL","emailAddress":"gina@gmail.com","appPassword":"secret"}"""))
+                .andExpect(status().isBadRequest());
     }
 
     private String register(String name, String email, String password) throws Exception {
