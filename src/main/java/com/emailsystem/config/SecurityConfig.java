@@ -35,6 +35,8 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/auth/**").permitAll()
 
+                        .requestMatchers(HttpMethod.GET, "/api/oauth/google/callback").permitAll()
+
                         .requestMatchers("/ws/**").permitAll()
 
                         .requestMatchers(HttpMethod.GET,

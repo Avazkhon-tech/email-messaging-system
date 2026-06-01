@@ -34,6 +34,29 @@ public class JwtService {
                 .compact();
     }
 
+    public String generateOAuthState(Long userId) {
+        Date now = new Date();
+        return Jwts.builder()
+                .subject(String.valueOf(userId))
+                .claim("purpose", "oauth_state")
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + 600_000L))
+                .signWith(key)
+                .compact();
+    }
+
+    public Long parseOAuthState(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        if (!"oauth_state".equals(claims.get("purpose", String.class))) {
+            throw new IllegalArgumentException("Not an OAuth state token");
+        }
+        return Long.valueOf(claims.getSubject());
+    }
+
     public AuthUser parse(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(key)
