@@ -44,6 +44,11 @@ public class EmailAccount {
     private String credentials;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "auth_type", nullable = false, length = 16)
+    @Builder.Default
+    private AuthType authType = AuthType.PASSWORD;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     @Builder.Default
     private AccountStatus status = AccountStatus.ACTIVE;
@@ -57,4 +62,10 @@ public class EmailAccount {
 
     @Column(name = "last_sync_status", length = 512)
     private String lastSyncStatus;
+
+    @Column(name = "history_id", length = 64)
+    private String historyId;
+
+    @Column(name = "watch_expiration")
+    private Instant watchExpiration;
 }

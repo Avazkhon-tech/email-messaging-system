@@ -26,4 +26,9 @@ public interface EmailAccountRepository extends JpaRepository<EmailAccount, Long
     List<EmailAccount> findActiveAccountsNeedingSync(Instant lastSyncedDate);
 
     boolean existsByUserIdAndEmailAddress(Long userId, String emailAddress);
+
+    Optional<EmailAccount> findByProviderAndEmailAddress(Provider provider, String emailAddress);
+
+    List<EmailAccount> findByProviderAndStatusAndAuthType(
+            Provider provider, AccountStatus status, AuthType authType);
 }
