@@ -2,10 +2,12 @@ package com.emailsystem.account;
 
 import com.emailsystem.account.dto.AccountResponse;
 import com.emailsystem.account.dto.CreateAccountRequest;
+import com.emailsystem.common.exception.BadRequestException;
 import com.emailsystem.common.exception.ConflictException;
 import com.emailsystem.common.exception.NotFoundException;
 import com.emailsystem.config.CacheNames;
 import com.emailsystem.crypto.CredentialCipher;
+import com.emailsystem.gmail.GmailWatchService;
 import com.emailsystem.provider.EmailProviderClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
@@ -23,10 +25,14 @@ public class AccountService {
     private final CredentialCipher cipher;
     private final EmailProviderClient providerClient;
     private final AccountMapper mapper;
+    private final GmailWatchService watchService;
 
     @Transactional
     @CacheEvict(cacheNames = CacheNames.ACCOUNTS, key = "#userId")
     public AccountResponse addAccount(Long userId, CreateAccountRequest request) {
+        if (request.provider() == Provider.GMAIL) {
+            throw new BadRequestException("Connect Gmail via OAuth (/api/oauth/google/authorize)");
+        }
         String emailAddress = request.emailAddress().trim().toLowerCase();
         if (accountRepository.existsByUserIdAndEmailAddress(userId, emailAddress)) {
             throw new ConflictException("This email account is already connected");
@@ -58,7 +64,17 @@ public class AccountService {
     public AccountResponse updateStatus(Long userId, Long accountId, AccountStatus status) {
         EmailAccount account = accountRepository.findByIdAndUserId(accountId, userId)
                 .orElseThrow(() -> new NotFoundException("Email account not found"));
+        AccountStatus previous = account.getStatus();
         account.setStatus(status);
+
+        if (account.getProvider() == Provider.GMAIL && account.getAuthType() == AuthType.OAUTH
+                && status != previous) {
+            if (status == AccountStatus.ACTIVE) {
+                watchService.startWatch(account);
+            } else {
+                watchService.stopWatch(account);
+            }
+        }
         return mapper.toResponse(accountRepository.save(account));
     }
 }
