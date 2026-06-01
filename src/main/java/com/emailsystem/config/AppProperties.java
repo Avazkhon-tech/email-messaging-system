@@ -24,6 +24,9 @@ public class AppProperties {
     @NestedConfigurationProperty
     private Mail mail = new Mail();
 
+    @NestedConfigurationProperty
+    private Cache cache = new Cache();
+
     @Getter
     @Setter
     public static class Jwt {
@@ -53,5 +56,14 @@ public class AppProperties {
     public static class Mail {
 
         private int timeoutMs = 30_000;
+    }
+
+    @Getter
+    @Setter
+    public static class Cache {
+
+        private long maximumSize = 10_000L;
+
+        private long expireAfterWriteSeconds = 300L;
     }
 }

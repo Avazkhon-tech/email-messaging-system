@@ -18,6 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mapstruct.factory.Mappers;
+import org.springframework.cache.support.NoOpCacheManager;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
@@ -47,7 +48,7 @@ class AccountSyncWorkerTest {
         props.getSync().setFetchLimit(50);
         MessageMapper mapper = Mappers.getMapper(MessageMapper.class);
         worker = new AccountSyncWorker(accountRepository, messageRepository,
-                providerClient, eventPublisher, props, mapper);
+                providerClient, eventPublisher, props, mapper, new NoOpCacheManager());
     }
 
     private EmailAccount account() {

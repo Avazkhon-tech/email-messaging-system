@@ -44,6 +44,11 @@ app:
   mail:
 
     timeout-ms: ${MAIL_TIMEOUT_MS:30000}
+  cache:
+
+    maximum-size: ${CACHE_MAX_SIZE:10000}
+
+    expire-after-write-seconds: ${CACHE_TTL_SECONDS:300}
 
 logging:
   level:

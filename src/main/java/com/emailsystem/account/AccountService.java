@@ -4,9 +4,12 @@ import com.emailsystem.account.dto.AccountResponse;
 import com.emailsystem.account.dto.CreateAccountRequest;
 import com.emailsystem.common.exception.ConflictException;
 import com.emailsystem.common.exception.NotFoundException;
+import com.emailsystem.config.CacheNames;
 import com.emailsystem.crypto.CredentialCipher;
 import com.emailsystem.provider.EmailProviderClient;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +25,7 @@ public class AccountService {
     private final AccountMapper mapper;
 
     @Transactional
+    @CacheEvict(cacheNames = CacheNames.ACCOUNTS, key = "#userId")
     public AccountResponse addAccount(Long userId, CreateAccountRequest request) {
         String emailAddress = request.emailAddress().trim().toLowerCase();
         if (accountRepository.existsByUserIdAndEmailAddress(userId, emailAddress)) {
@@ -42,6 +46,7 @@ public class AccountService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheNames.ACCOUNTS, key = "#userId")
     public List<AccountResponse> listAccounts(Long userId) {
         return accountRepository.findByUserId(userId).stream()
                 .map(mapper::toResponse)
@@ -49,6 +54,7 @@ public class AccountService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = CacheNames.ACCOUNTS, key = "#userId")
     public AccountResponse updateStatus(Long userId, Long accountId, AccountStatus status) {
         EmailAccount account = accountRepository.findByIdAndUserId(accountId, userId)
                 .orElseThrow(() -> new NotFoundException("Email account not found"));

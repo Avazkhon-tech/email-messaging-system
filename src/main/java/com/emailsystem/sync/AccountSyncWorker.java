@@ -3,6 +3,7 @@ package com.emailsystem.sync;
 import com.emailsystem.account.EmailAccount;
 import com.emailsystem.account.EmailAccountRepository;
 import com.emailsystem.config.AppProperties;
+import com.emailsystem.config.CacheNames;
 import com.emailsystem.message.EmailMessage;
 import com.emailsystem.message.EmailMessageRepository;
 import com.emailsystem.message.MessageMapper;
@@ -13,6 +14,8 @@ import com.emailsystem.realtime.NewMailEvent;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +36,7 @@ public class AccountSyncWorker {
     private final ApplicationEventPublisher eventPublisher;
     private final AppProperties properties;
     private final MessageMapper mapper;
+    private final CacheManager cacheManager;
 
     @Transactional
     public void sync(EmailAccount account) {
@@ -54,6 +58,7 @@ public class AccountSyncWorker {
             account.setLastSyncedAt(syncStartedAt);
             account.setLastSyncStatus("OK: " + newSummaries.size() + " new");
             accountRepository.save(account);
+            evictAccountsCache(account.getUserId());
 
             if (!newSummaries.isEmpty()) {
 
@@ -66,7 +71,15 @@ public class AccountSyncWorker {
 
             account.setLastSyncStatus("ERROR: " + truncate(e.getMessage()));
             accountRepository.save(account);
+            evictAccountsCache(account.getUserId());
             log.warn("Sync failed for account {}: {}", account.getEmailAddress(), e.getMessage());
+        }
+    }
+
+    private void evictAccountsCache(Long userId) {
+        Cache cache = cacheManager.getCache(CacheNames.ACCOUNTS);
+        if (cache != null) {
+            cache.evict(userId);
         }
     }
 
